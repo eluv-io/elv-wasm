@@ -202,6 +202,7 @@ impl<'a> BitcodeContext {
         qihot: String,
         offset: i64,
         length: i64,
+        decrypt: bool,
     ) -> CallResult {
         let msg = json!(
           {
@@ -210,6 +211,7 @@ impl<'a> BitcodeContext {
             "len" : length,
             "qphash":qphash,
             "qihot" : qihot,
+            "decrypt" : decrypt,
          }
         );
         self.call_function("QWritePartToStream", msg, "core")
@@ -575,16 +577,15 @@ impl<'a> BitcodeContext {
     /// }
     /// ```
     pub fn fetch_link_reader(&'a self, link: serde_json::Value) -> CallResult {
-      let fetch_params = json!
-      (
-        {
-          "link": link,
-          "use_reader": true,
-        }
-      );
-      self.call_function("FetchLink", fetch_params, "core")
-  }
-
+        let fetch_params = json!
+        (
+          {
+            "link": link,
+            "use_reader": true,
+          }
+        );
+        self.call_function("FetchLink", fetch_params, "core")
+    }
 
     /// fetch_link resolves the fabric file link
     /// # Arguments

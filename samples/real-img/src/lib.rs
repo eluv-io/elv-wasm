@@ -39,10 +39,10 @@ pub struct ImageWatermark {
 }
 
 fn parse_asset(path: &str) -> String {
-    let mut pos: Vec<&str> = path.split('/').collect();
+    let pos: Vec<&str> = path.split('/').collect();
     if pos.len() > 2 {
-        pos = pos[3..].to_owned();
-        return "/".to_string() + &pos.join("/");
+        let new_pos: Vec<&str> = pos[3..].to_vec();
+        return "/".to_string() + &new_pos.join("/");
     }
     "".to_owned()
 }

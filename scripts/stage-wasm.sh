@@ -19,6 +19,8 @@ else
     cp "$1"/target/wasm32-unknown-unknown/"$build_type"/external.wasm "$2"/bitcode/wasm/external/external.wasm
     cp "$1"/target/wasm32-unknown-unknown/"$build_type"/external_img.wasm "$2"/bitcode/wasm/image/external_img.wasm
     cp "$1"/target/wasm32-unknown-unknown/"$build_type"/panic.wasm "$2"/bitcode/wasm/panic/panic.wasm
+    cp "$1"/target/wasm32-unknown-unknown/"$build_type"/parts_download.wasm "$2"/bitcode/wasm/objtar/parts_download.wasm
+
 
     if [ "${BUILD_ASC}" = "true" ]; then
         cp -u -f "$1"/target/wasm32-unknown-unknown/release/test_wapc.wasm "$2"/exeng/tests
