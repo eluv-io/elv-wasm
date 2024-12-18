@@ -71,6 +71,37 @@ impl<'a> BitcodeContext {
         host_call(&self.request.id, stream, "Write", src)
     }
 
+    /// read_stream_chunked reads usize bytes ub chunks of chunksize from a fabric stream returning a slice of [u8]
+    /// # Arguments
+    /// * `stream_to_read`-  the fabric stream to read from
+    /// * `sz`-  usize size of bytes
+    /// * `chunksize`-  usize size of bytes to read in each chunk
+    /// # Returns
+    ///   byte slice of the read stream
+    /// [Example](https://github.com/eluv-io/elv-wasm/blob/019b88ac27635d5022c2211751f6af5957df2463/samples/objtar/src/lib.rs#L112)
+    ///
+    pub fn read_stream_chunked(&'a self, stream_to_read: String, chunk_size: usize) -> CallResult {
+        self.log_debug(&format!("imput len = {}", chunk_size))?;
+        let mut data: Vec<u8> = Vec::new();
+        loop {
+            let partial = match self.read_stream(stream_to_read.clone(), chunk_size) {
+                Ok(p) => p,
+                Err(e) => {
+                    self.log_error(&format!("Error reading stream: {e}"))?;
+                    break;
+                }
+            };
+            if partial.is_empty() {
+                break;
+            }
+            data.extend_from_slice(&partial);
+        }
+        Ok(data)
+        // Read was previously being called with a json object containing the length
+        // resulting in a full read of the part and itsd subsequent return as a base64 encoded string
+        // The new convention is to call Reader which will return a byte slice or error
+    }
+
     /// read_stream reads usize bytes from a fabric stream returning a slice of [u8]
     /// # Arguments
     /// * `stream_to_read`-  the fabric stream to read from

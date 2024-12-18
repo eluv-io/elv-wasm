@@ -44,28 +44,31 @@ fn main() {
         execute("npm", &["install", "asc"]);
         execute("npm", &["run", "asbuild"]);
     }
-    pbase.push("go");
-    pbase.push("test_wapc");
+    let do_fab = env::var_os("BUILD_FABRIC").is_some();
+    if do_fab {
+        pbase.push("go");
+        pbase.push("test_wapc");
 
-    env::set_current_dir(pbase).unwrap();
-    execute(
-        "tinygo",
-        &[
-            "build",
-            "-o",
-            "test_wapc.wasm",
-            "-target=wasi",
-            "-no-debug",
-            "main.go",
-        ],
-    );
-    execute(
-        "mv",
-        &[
-            "-f",
-            "-u",
-            "test_wapc.wasm",
-            "../../../target/wasm32-unknown-unknown/release/",
-        ],
-    )
+        env::set_current_dir(pbase).unwrap();
+        execute(
+            "tinygo",
+            &[
+                "build",
+                "-o",
+                "test_wapc.wasm",
+                "-target=wasi",
+                "-no-debug",
+                "main.go",
+            ],
+        );
+        execute(
+            "mv",
+            &[
+                "-f",
+                "-u",
+                "test_wapc.wasm",
+                "../../../target/wasm32-unknown-unknown/release/",
+            ],
+        )
+    }
 }
