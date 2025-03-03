@@ -225,7 +225,7 @@ impl<'a> BitcodeContext {
         Ok(v)
     }
 
-    pub fn make_error(&'a self, msg: &'static str) -> CallResult {
+    pub fn make_error(&'a self, msg: &str) -> CallResult {
         make_json_error(ErrorKinds::Invalid(msg.to_string()), &self.request.id)
     }
 

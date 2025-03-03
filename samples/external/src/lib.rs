@@ -62,7 +62,7 @@ fn do_external_fail(bcc: &mut BitcodeContext) -> CallResult {
         let _ = bcc.close_stream(stream_img.stream_id.clone());
     }
     let mut fsw = FabricStreamWriter::new(bcc, stream_img.stream_id.clone(), imgbits.len());
-    fsw.write_all(&imgbits)?;
+    fsw.write_all(imgbits)?;
     let imgpart: CreatePartResult = bcc
         .q_create_part_from_stream(&bcc.request.q_info.write_token, &stream_img.stream_id)
         .try_into()?;

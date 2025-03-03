@@ -157,7 +157,7 @@ fn do_parts_download(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
             header.set_path(&part.hash)?;
             header.set_cksum();
 
-            a.append(&mut header, fsr)?;
+            a.append(&header, fsr)?;
         }
         a.finish()?;
         let mut finished_writer = a.into_inner()?;

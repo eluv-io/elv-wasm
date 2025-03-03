@@ -8,14 +8,22 @@ extern crate serde_json;
 extern crate scopeguard;
 
 use elvwasm::{
-    bccontext_fabric_io::FabricStreamReader, bccontext_fabric_io::FabricStreamWriter,
-    implement_bitcode_module, jpc, register_handler, NewStreamResult, QPartList, SystemTimeResult,
+    bccontext_fabric_io::{FabricStreamReader, FabricStreamWriter},
+    implement_bitcode_module, jpc, register_handler, FileStream, NewStreamResult, QPartList,
+    SystemTimeResult,
 };
 use flate2::write::GzEncoder;
 use serde_json::json;
-use std::io::{BufWriter, Write};
+use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 
-implement_bitcode_module!("tar", do_tar_from_obj, "content", do_tar_from_obj);
+implement_bitcode_module!(
+    "tar",
+    do_tar_from_obj,
+    "content",
+    do_tar_from_obj,
+    "seeker",
+    do_seeker
+);
 
 #[no_mangle]
 fn do_tar_from_obj(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
@@ -73,5 +81,42 @@ fn do_tar_from_obj(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
     bcc.log_debug(&format!("Callback size = {}", fw.size))?;
     bcc.callback(200, "application/zip", fw.size)?;
 
+    bcc.make_success_json(&json!({}))
+}
+
+#[no_mangle]
+pub fn do_seeker(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
+    let fstream: FileStream = bcc.new_file_stream().try_into()?;
+    defer! {
+        bcc.log_debug(&format!("Closing part stream {}", &fstream.stream_id)).unwrap_or_default();
+        let _ = bcc.close_stream(fstream.stream_id.clone());
+    }
+    let mut fsw = FabricStreamWriter::new(bcc, fstream.stream_id.clone(), 0);
+
+    // Write a known string into the fabric file
+    let known_string = "Hello, world! This is a test string for seeking.";
+    fsw.write_all(known_string.as_bytes())?;
+    fsw.flush()?;
+    let expected = ["Hello, wor", "world! Thi", " This is a", "est string"];
+
+    // Use a reader to seek to different positions and read the data
+    let mut fsr = FabricStreamReader::new(fstream.stream_id.clone(), bcc);
+    let positions = [0, 7, 13, 25];
+    for (iter, &pos) in positions.iter().enumerate() {
+        fsr.seek(SeekFrom::Start(pos))?;
+        let mut buffer = [0; 10];
+        let bytes_read = fsr.read(&mut buffer)?;
+        if &buffer[..bytes_read] != expected[iter].as_bytes() {
+            return bcc.make_error(&format!(
+                "error unexpected data read at position {} expected {} got {}",
+                iter,
+                expected[iter],
+                String::from_utf8_lossy(&buffer[..bytes_read]),
+            ));
+        }
+    }
+
+    // Close the stream
+    bcc.close_stream(fstream.stream_id.clone())?;
     bcc.make_success_json(&json!({}))
 }

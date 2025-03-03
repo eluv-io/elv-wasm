@@ -213,6 +213,7 @@ pub struct HttpParams {
     pub body: serde_json::Value,
     #[serde(default)]
     pub query: HashMap<String, Vec<String>>,
+    #[serde(default)]
     pub verb: String,
     #[serde(default)]
     pub fragment: String,

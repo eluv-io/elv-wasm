@@ -79,28 +79,28 @@ impl std::io::Write for FabricStreamWriter<'_> {
 
 impl std::io::Seek for FabricStreamWriter<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, std::io::Error> {
-        match pos {
-            SeekFrom::Start(s) => {
-                self.bcc
-                    .seek_stream(
-                        &self.stream_id,
-                        s.try_into()
-                            .map_err(|e| std::io::Error::new(ErrorKind::Other, e))?,
-                        0,
-                    )
-                    .map_err(|e| std::io::Error::new(ErrorKind::Other, e))?;
-            }
-            SeekFrom::Current(s) => {
-                self.bcc
-                    .seek_stream(&self.stream_id, s, 1)
-                    .map_err(|e| std::io::Error::new(ErrorKind::Other, e))?;
-            }
-            SeekFrom::End(s) => {
-                self.bcc
-                    .seek_stream(&self.stream_id, s, 2)
-                    .map_err(|e| std::io::Error::new(ErrorKind::Other, e))?;
-            }
+        let (offset, whence) = match pos {
+            SeekFrom::Start(offset) => (offset as i64, 0),
+            SeekFrom::Current(offset) => (offset, 1),
+            SeekFrom::End(offset) => (offset, 2),
         };
-        Ok(self.size as u64)
+        match self.bcc.seek_stream(&self.stream_id, offset, whence) {
+            Ok(_) => Ok(self.size as u64),
+            Err(e) => Err(std::io::Error::new(ErrorKind::Other, e)),
+        }
+    }
+}
+
+impl std::io::Seek for FabricStreamReader<'_> {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, std::io::Error> {
+        let (offset, whence) = match pos {
+            SeekFrom::Start(offset) => (offset as i64, 0),
+            SeekFrom::Current(offset) => (offset, 1),
+            SeekFrom::End(offset) => (offset, 2),
+        };
+        match self.bcc.seek_stream(&self.stream_id, offset, whence) {
+            Ok(_) => Ok(0),
+            Err(e) => Err(std::io::Error::new(ErrorKind::Other, e)),
+        }
     }
 }

@@ -4,7 +4,7 @@ extern crate serde_json;
 extern crate scopeguard;
 use std::collections::HashMap;
 
-use elvwasm::ErrorKinds;
+use elvwasm::{bccontext_fabric_io::FabricStreamReader, ErrorKinds};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -63,7 +63,7 @@ fn fab_file_to_image(
     stream_id: &str,
     asset_path: &str,
 ) -> image::ImageResult<image::DynamicImage> {
-    let written: WriteResult = match bcc
+    let _written: WriteResult = match bcc
         .q_file_to_stream(stream_id, asset_path, &bcc.request.q_info.hash)
         .try_into()
     {
@@ -75,16 +75,9 @@ fn fab_file_to_image(
             )))
         }
     };
-    let read_data = match bcc.read_stream(stream_id.to_owned(), written.written) {
-        Ok(v) => v,
-        Err(x) => {
-            return Err(image::ImageError::IoError(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                x,
-            )))
-        }
-    };
-    let buffer = read_data;
+    let mut fsr = FabricStreamReader::new(stream_id.to_owned(), bcc);
+    let mut buffer = Vec::<u8>::new();
+    std::io::copy(&mut fsr, &mut buffer)?;
     image::load_from_memory_with_format(&buffer, image::ImageFormat::Jpeg)
 }
 
