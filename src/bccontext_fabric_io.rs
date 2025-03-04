@@ -1,7 +1,7 @@
 extern crate thiserror;
 extern crate wapc_guest as guest;
 
-use crate::BitcodeContext;
+use crate::{BitcodeContext, SeekResult};
 
 use std::io::{ErrorKind, Read, SeekFrom};
 
@@ -77,30 +77,29 @@ impl std::io::Write for FabricStreamWriter<'_> {
     }
 }
 
+fn seek_impl(bcc: &BitcodeContext, pos: SeekFrom, stream_id: &str) -> Result<u64, std::io::Error> {
+    let (offset, whence) = match pos {
+        SeekFrom::Start(offset) => (offset as i64, 0),
+        SeekFrom::Current(offset) => (offset, 1),
+        SeekFrom::End(offset) => (offset, 2),
+    };
+    match bcc.seek_stream(stream_id, offset, whence) {
+        Ok(x) => {
+            let sr: SeekResult = serde_json::from_slice(&x)?;
+            Ok(sr.offset)
+        }
+        Err(e) => Err(std::io::Error::new(ErrorKind::Other, e)),
+    }
+}
+
 impl std::io::Seek for FabricStreamWriter<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, std::io::Error> {
-        let (offset, whence) = match pos {
-            SeekFrom::Start(offset) => (offset as i64, 0),
-            SeekFrom::Current(offset) => (offset, 1),
-            SeekFrom::End(offset) => (offset, 2),
-        };
-        match self.bcc.seek_stream(&self.stream_id, offset, whence) {
-            Ok(_) => Ok(self.size as u64),
-            Err(e) => Err(std::io::Error::new(ErrorKind::Other, e)),
-        }
+        seek_impl(self.bcc, pos, "fos")
     }
 }
 
 impl std::io::Seek for FabricStreamReader<'_> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, std::io::Error> {
-        let (offset, whence) = match pos {
-            SeekFrom::Start(offset) => (offset as i64, 0),
-            SeekFrom::Current(offset) => (offset, 1),
-            SeekFrom::End(offset) => (offset, 2),
-        };
-        match self.bcc.seek_stream(&self.stream_id, offset, whence) {
-            Ok(_) => Ok(0),
-            Err(e) => Err(std::io::Error::new(ErrorKind::Other, e)),
-        }
+        seek_impl(self.bcc, pos, &self.stream_id)
     }
 }

@@ -103,7 +103,13 @@ pub fn do_seeker(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
     let mut fsr = FabricStreamReader::new(fstream.stream_id.clone(), bcc);
     let positions = [0, 7, 13, 25];
     for (iter, &pos) in positions.iter().enumerate() {
-        fsr.seek(SeekFrom::Start(pos))?;
+        let seek_return = fsr.seek(SeekFrom::Start(pos))?;
+        if seek_return != pos {
+            return bcc.make_error(&format!(
+                "error unexpected seek return at position {} expected {} got {}",
+                iter, pos, seek_return
+            ));
+        }
         let mut buffer = [0; 10];
         let bytes_read = fsr.read(&mut buffer)?;
         if &buffer[..bytes_read] != expected[iter].as_bytes() {

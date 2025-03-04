@@ -36,6 +36,12 @@ pub struct SizeStats {
 
 /// Bitcode representation of a fabric size error
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SeekResult {
+    pub offset: u64,
+}
+
+/// Bitcode representation of a fabric size error
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct QError {
     pub error: String,
     #[serde(default)]
