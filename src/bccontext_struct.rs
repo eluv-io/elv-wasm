@@ -34,7 +34,7 @@ pub struct SizeStats {
     pub size_bytes: i64,
 }
 
-/// Bitcode representation of a fabric size error
+/// Result of the Seek operation for FabricStreamReader and FabricStreamWriter
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SeekResult {
     pub offset: u64,
