@@ -16,10 +16,18 @@ pub fn execute(exe: &str, args: &[&str]) {
     }
 }
 
+fn get_git_hash() -> String {
+    let repo = git2::Repository::open(".").unwrap();
+    let head = repo.head().unwrap();
+    let head_oid = head.target().unwrap();
+    let head_commit = repo.find_commit(head_oid).unwrap();
+    head_commit.id().to_string()
+}
+
 fn setup_version() {
     // Retrieve the Cargo version from the environment variable
     let cargo_version = env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "unknown".to_string());
-
+    let commit_hash = get_git_hash();
     // Write the version to a file
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = format!("{}/version.rs", out_dir);
@@ -27,8 +35,8 @@ fn setup_version() {
 
     write!(
         &mut file,
-        "pub const CARGO_VERSION: &str = \"{}\";\n\n",
-        cargo_version
+        "pub const CARGO_VERSION: &str = \"{}\";\n\n pub const COMMIT_HASH: &str = \"{}\";\n",
+        cargo_version, commit_hash
     )
     .unwrap();
 }

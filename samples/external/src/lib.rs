@@ -6,6 +6,7 @@ extern crate serde_json;
 extern crate scopeguard;
 
 use base64::{engine::general_purpose, Engine as _};
+use elvwasm::bccontext_fabric_io::FabricStreamWriter;
 use elvwasm::BitcodeContext;
 use elvwasm::{
     implement_bitcode_module, jpc, register_handler, CreatePartResult, ErrorKinds,
@@ -13,6 +14,7 @@ use elvwasm::{
 };
 use serde_json::json;
 use std::convert::TryInto;
+use std::io::Write;
 
 implement_bitcode_module!("external", do_external, "failme", do_external_fail);
 
@@ -29,7 +31,7 @@ fn do_external_fail(bcc: &mut BitcodeContext) -> CallResult {
     let tar_hash = &qp
         .get("tar_hash")
         .ok_or(ErrorKinds::Invalid("tar_hash not present".to_string()))?[0];
-    bcc.log_info(&format!("img_hash ={img_hash:?} tar_hash = {tar_hash:?}"))?;
+    bcc.log_debug(&format!("img_hash ={img_hash:?} tar_hash = {tar_hash:?}"))?;
     let params = json!({
         "http" : {
             "verb" : "some",
@@ -59,7 +61,8 @@ fn do_external_fail(bcc: &mut BitcodeContext) -> CallResult {
         bcc.log_debug(&format!("Closing part stream {}", &stream_img.stream_id)).unwrap_or_default();
         let _ = bcc.close_stream(stream_img.stream_id.clone());
     }
-    bcc.write_stream(&stream_img.stream_id, imgbits)?;
+    let mut fsw = FabricStreamWriter::new(bcc, stream_img.stream_id.clone(), imgbits.len());
+    fsw.write_all(imgbits)?;
     let imgpart: CreatePartResult = bcc
         .q_create_part_from_stream(&bcc.request.q_info.write_token, &stream_img.stream_id)
         .try_into()?;
@@ -110,7 +113,7 @@ fn do_external(bcc: &mut BitcodeContext) -> CallResult {
     let tar_hash = &qp
         .get("tar_hash")
         .ok_or(ErrorKinds::Invalid("tar_hash not present".to_string()))?[0];
-    bcc.log_info(&format!("img_hash ={img_hash:?} tar_hash = {tar_hash:?}"))?;
+    bcc.log_debug(&format!("img_hash ={img_hash:?} tar_hash = {tar_hash:?}"))?;
     let params = json!({
         "http" : {
             "verb" : "GET",
@@ -128,7 +131,7 @@ fn do_external(bcc: &mut BitcodeContext) -> CallResult {
     let exr: ExternalCallResult = bcc
         .call_external_bitcode("image", &params, img_obj, "builtin")
         .try_into()?;
-    bcc.log_info("here")?;
+    bcc.log_debug("do external")?;
     let imgbits = &general_purpose::STANDARD.decode(&exr.fout)?;
     console_log(&format!(
         "imgbits decoded size = {} fout size = {}",
@@ -170,12 +173,12 @@ fn do_external(bcc: &mut BitcodeContext) -> CallResult {
         .call_external_bitcode("tar", &tar_params, &fc.qhash, tar_hash)
         .try_into()?;
     let tarbits = &general_purpose::STANDARD.decode(&exr_tar.fout)?;
-    bcc.log_info(&format!(
+    bcc.log_debug(&format!(
         "fout size = {} tar_ bit len = {}",
         &exr_tar.fout.len(),
         tarbits.len()
     ))?;
     bcc.callback(200, "application/zip", tarbits.len())?;
-    bcc.write_stream("fos", tarbits)?;
+    FabricStreamWriter::new(bcc, "fos".to_string(), tarbits.len()).write_all(tarbits)?;
     bcc.make_success_json(&json!({}))
 }

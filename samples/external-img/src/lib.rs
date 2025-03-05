@@ -7,12 +7,14 @@ extern crate serde_derive;
 extern crate serde_json;
 
 use elvwasm::{
+    bccontext_fabric_io::FabricStreamReader, bccontext_fabric_io::FabricStreamWriter,
     implement_bitcode_module, jpc, register_handler, BitcodeContext, FetchResult, SystemTimeResult,
 };
+
 use serde_derive::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
-use std::io::{BufWriter, ErrorKind, SeekFrom, Write};
+use std::io::{BufWriter, Write};
 use std::path::Path;
 
 use elvwasm::ErrorKinds;
@@ -201,15 +203,17 @@ fn do_bulk_download(bcc: &mut BitcodeContext) -> CallResult {
         }
         None => DEF_CAP,
     };
-    let total_size = 0;
-    let mut fw = FabricWriter::new(bcc, total_size);
+    let mut fw = FabricStreamWriter::new(bcc, "fos".to_string(), 0);
     {
         let bw = BufWriter::with_capacity(buf_cap, &mut fw);
 
         //let zip = GzEncoder::new(bw, flate2::Compression::default());
         let mut a = tar::Builder::new(bw);
         let time_cur: SystemTimeResult = bcc.q_system_time().try_into()?;
-        let rsr = bcc.read_stream_chunked("fis".to_string(), 10000000)?;
+        let mut fir = FabricStreamReader::new("fis".to_string(), bcc);
+        let mut buffer = Vec::new();
+        std::io::copy(&mut fir, &mut buffer)?;
+        let rsr: Vec<u8> = buffer;
 
         let params: Vec<String> = if !rsr.is_empty() {
             let p: serde_json::Value = serde_json::from_slice(&rsr)?;
@@ -249,11 +253,21 @@ fn do_bulk_download(bcc: &mut BitcodeContext) -> CallResult {
             };
 
             let mut header = tar::Header::new_gnu();
-            let read_bytes = bcc.read_stream_chunked(exr.body, 10000000)?;
-            header.set_size(read_bytes.len() as u64);
-            header.set_cksum();
-            header.set_mtime(time_cur.time);
-            header.set_mode(0o644);
+            let sz_file: i32 = exr
+                .headers
+                .get("Content-Length")
+                .unwrap_or(&vec!["0".to_string()])[0]
+                .parse::<i32>()
+                .unwrap_or(0);
+            bcc.log_debug(&std::format!("Bulk download asset {p} size = {sz_file}"))?;
+            if sz_file < 0 {
+                v_file_status.push(SummaryElement {
+                    asset: format!("{0} Error=Size is negative", p),
+                    status: "failed".to_string(),
+                });
+                continue;
+            }
+
             let filename: String = exr
                 .headers
                 .get("Content-Disposition")
@@ -266,7 +280,13 @@ fn do_bulk_download(bcc: &mut BitcodeContext) -> CallResult {
                 .map(|s| s.trim_matches(|c| c == '"' || c == '\''))
                 .ok_or(ErrorKinds::NotExist("filename= not found".to_string()))?
                 .to_string();
-            a.append_data(&mut header, &filename, read_bytes.as_slice())?;
+            let fsr = FabricStreamReader::new(exr.body.clone(), bcc);
+            header.set_size(sz_file as u64);
+            header.set_mtime(time_cur.time);
+            header.set_mode(0o644);
+            header.set_path(&filename)?;
+            header.set_cksum();
+            a.append(&header, fsr)?;
             v_file_status.push(SummaryElement {
                 asset: filename.to_string(),
                 status: "success".to_string(),
@@ -315,10 +335,10 @@ fn do_single_asset(
 
     let exr: FetchResult = get_single_offering_image(bcc, &result.url, is_video).try_into()?;
 
-    let body_size = 0;
     let sid = exr.body;
-    let input = bcc.read_stream_chunked(sid.to_string(), 1000000)?;
-    bcc.write_stream("fos", &input)?;
+    let mut fsr = FabricStreamReader::new(sid.clone(), bcc);
+    let mut fsw = FabricStreamWriter::new(bcc, "fos".to_string(), 0);
+    let body_size = std::io::copy(&mut fsr, &mut fsw)? as usize;
     let mut filename = meta
         .get("title")
         .ok_or(ErrorKinds::NotExist("title not found in meta".to_string()))?
@@ -403,49 +423,6 @@ impl TryFrom<CallResult> for ComputeCallResult {
         cr: CallResult,
     ) -> Result<ComputeCallResult, Box<dyn std::error::Error + Sync + Send + 'static>> {
         Ok(serde_json::from_slice(&cr?)?)
-    }
-}
-
-//FabricWriter is a struct that implements the Write trait
-//The struct is used to write the image bits to the qfab based stream
-// The is no buffer in the struct as the BufWriter will write immediately to "fos" of qfab's context
-#[derive(Debug)]
-struct FabricWriter<'a> {
-    bcc: &'a BitcodeContext,
-    size: usize,
-}
-
-impl FabricWriter<'_> {
-    fn new(bcc: &BitcodeContext, sz: usize) -> FabricWriter<'_> {
-        FabricWriter { bcc, size: sz }
-    }
-}
-impl std::io::Write for FabricWriter<'_> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-        match self.bcc.write_stream("fos", buf) {
-            Ok(s) => {
-                let w: elvwasm::WritePartResult = serde_json::from_slice(&s)?;
-                self.size += w.written;
-                Ok(w.written)
-            }
-            Err(e) => Err(std::io::Error::new(ErrorKind::Other, e)),
-        }
-    }
-
-    fn flush(&mut self) -> Result<(), std::io::Error> {
-        // Nothing to flush.  The BufWriter will handle its buffer independant using writes
-        Ok(())
-    }
-}
-
-impl std::io::Seek for FabricWriter<'_> {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, std::io::Error> {
-        match pos {
-            SeekFrom::Start(_s) => {}
-            SeekFrom::Current(_s) => {}
-            SeekFrom::End(_s) => {}
-        }
-        Ok(self.size as u64)
     }
 }
 

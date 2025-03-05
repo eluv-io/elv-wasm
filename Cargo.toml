@@ -41,6 +41,9 @@ thiserror = "1.0.30"
 wapc = "1.0.0"
 wapc-guest = "1.0"
 
+[build-dependencies]
+git2 = "0.13"
+
 [workspace]
 members = [
     "samples",

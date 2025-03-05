@@ -93,7 +93,7 @@ fn do_crawl2(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
 fn do_crawl(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
     let http_p = &bcc.request.params.http;
     let qp = &http_p.query;
-    bcc.log_info(&format!(
+    bcc.log_debug(&format!(
         "In do_crawl hash={} headers={:#?} query params={qp:#?}",
         &bcc.request.q_info.hash, &http_p.headers
     ))?;
@@ -154,7 +154,7 @@ fn do_crawl(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
         }
     };
     let doc_id = o_doc_id.unwrap();
-    bcc.log_info(&format!(
+    bcc.log_debug(&format!(
         "doc_id={doc_id}, field_title = {}, field_body={}",
         field_title.unwrap(),
         field_body.unwrap()
@@ -173,7 +173,7 @@ fn do_crawl(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
     let body_hash = b.unwrap_or_else(|| json!({}));
     bcc.callback(200, "application/json", part_u8.len())?;
     bcc.write_stream("fos", &part_u8)?;
-    bcc.log_info(&format!("part hash = {part_hash}, body = {body_hash}"))?;
+    bcc.log_debug(&format!("part hash = {part_hash}, body = {body_hash}"))?;
     bcc.make_success_json(&json!(
     {
         "headers" : "application/json",
@@ -219,15 +219,15 @@ struct HttpP {
 }
 
 fn do_search(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
-    bcc.log_info("In do search")?;
+    bcc.log_debug("In do search")?;
     let http_p = &bcc.request.params.http;
-    bcc.log_info(&format!("http={:?}", &http_p))?;
+    bcc.log_debug(&format!("http={:?}", &http_p))?;
     let qp = &http_p.query;
     if qp.is_empty() {
-        bcc.log_info("qp len 0")?;
+        bcc.log_debug("qp len 0")?;
         return bcc.make_error("query params are empty");
     }
-    bcc.log_info("here")?;
+    bcc.log_debug("do search")?;
 
     let part_hash = &qp["part-hash"][0];
     let content_hash = &qp["content-hash"][0];

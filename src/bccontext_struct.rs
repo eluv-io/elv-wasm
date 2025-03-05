@@ -34,6 +34,12 @@ pub struct SizeStats {
     pub size_bytes: i64,
 }
 
+/// Result of the Seek operation for FabricStreamReader and FabricStreamWriter
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SeekResult {
+    pub offset: u64,
+}
+
 /// Bitcode representation of a fabric size error
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct QError {
@@ -213,6 +219,7 @@ pub struct HttpParams {
     pub body: serde_json::Value,
     #[serde(default)]
     pub query: HashMap<String, Vec<String>>,
+    #[serde(default)]
     pub verb: String,
     #[serde(default)]
     pub fragment: String,

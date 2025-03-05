@@ -4,7 +4,7 @@ extern crate serde_json;
 extern crate scopeguard;
 use std::collections::HashMap;
 
-use elvwasm::ErrorKinds;
+use elvwasm::{bccontext_fabric_io::FabricStreamReader, ErrorKinds};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -63,7 +63,7 @@ fn fab_file_to_image(
     stream_id: &str,
     asset_path: &str,
 ) -> image::ImageResult<image::DynamicImage> {
-    let written: WriteResult = match bcc
+    let _written: WriteResult = match bcc
         .q_file_to_stream(stream_id, asset_path, &bcc.request.q_info.hash)
         .try_into()
     {
@@ -75,16 +75,9 @@ fn fab_file_to_image(
             )))
         }
     };
-    let read_data = match bcc.read_stream(stream_id.to_owned(), written.written) {
-        Ok(v) => v,
-        Err(x) => {
-            return Err(image::ImageError::IoError(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                x,
-            )))
-        }
-    };
-    let buffer = read_data;
+    let mut fsr = FabricStreamReader::new(stream_id.to_owned(), bcc);
+    let mut buffer = Vec::<u8>::new();
+    std::io::copy(&mut fsr, &mut buffer)?;
     image::load_from_memory_with_format(&buffer, image::ImageFormat::Jpeg)
 }
 
@@ -92,7 +85,7 @@ fn do_img(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
     let http_p = &bcc.request.params.http;
     let offering_json: ImageWatermark = elvwasm::convert(&get_offering(bcc, &http_p.path))?;
     let asset_path = parse_asset(&http_p.path);
-    bcc.log_info(&format!(
+    bcc.log_debug(&format!(
         "offering = {:?} asset_path = {} http_path= {}",
         &offering_json, &asset_path, &http_p.path
     ))?;
@@ -114,7 +107,7 @@ fn do_img(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
     let outer_height: usize = height_str[0].parse().unwrap_or(h as usize);
     let width_factor: f32 = w as f32 / h as f32;
     let outer_width: usize = (width_factor * outer_height as f32) as usize;
-    bcc.log_info(&format!(
+    bcc.log_debug(&format!(
         "x={} y={} outerh = {} outerw = {}",
         h, w, outer_height, outer_width
     ))?;
@@ -124,7 +117,6 @@ fn do_img(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
         image::imageops::FilterType::Lanczos3,
     );
     if !offering_json.image_watermark.image.is_empty() {
-        bcc.log_info("WATERMARK")?;
         let stream_wm: NewStreamResult = bcc.new_stream().try_into()?;
         defer! {
           let _ = bcc.close_stream(stream_wm.stream_id.clone());
@@ -139,7 +131,7 @@ fn do_img(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
                 )))
             }
         };
-        bcc.log_info(&format!("watermark image {}", &wm_filename[7..]))?;
+        bcc.log_debug(&format!("watermark image {}", &wm_filename[7..]))?;
         let wm = fab_file_to_image(&bcc, &stream_wm.stream_id, &wm_filename[7..])?;
         let wm_height_scale = offering_json.image_watermark.height;
         let opacity = offering_json.image_watermark.opacity;
@@ -153,7 +145,7 @@ fn do_img(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
             .samples
             .chunks_mut(4)
             .for_each(|channels: &mut [u8]| channels[3] = (channels[3] as f32 * opacity) as u8);
-        bcc.log_info("THUMBNAIL")?;
+        bcc.log_debug("THUMBNAIL")?;
         image::GenericImage::copy_from(
             &mut br,
             &wm_thumb,
@@ -161,10 +153,10 @@ fn do_img(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
             (outer_height as f32 * wm_height_scale / 2.0) as u32,
         )?;
     } else {
-        bcc.log_info("NO WATERMARK!!!")?;
+        bcc.log_debug("NO WATERMARK")?;
     }
 
-    bcc.log_info(&format!("DynImage {:?}", br.bounds()))?;
+    bcc.log_debug(&format!("DynImage {:?}", br.bounds()))?;
     let mut bytes: Vec<u8> = Vec::new();
     let mut encoder = JpegEncoder::new(&mut bytes);
     encoder.encode(&br.to_bytes(), br.width(), br.height(), br.color())?;

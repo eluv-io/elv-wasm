@@ -27,8 +27,8 @@ fn do_lro(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
 fn do_lro_callback(bcc: &mut elvwasm::BitcodeContext) -> CallResult {
     let http_p = &bcc.request.params.http;
     let _qp = &http_p.query;
-    bcc.log_info("IN CALLBACK!!!!!!!")?;
+    bcc.log_debug("lro callback")?;
     let mr: ModifyResult = bcc.q_modify_content().try_into()?;
-    bcc.log_info(&format!("write token = {}", mr.qwtoken))?;
+    bcc.log_debug(&format!("write token = {}", mr.qwtoken))?;
     bcc.make_success_json(&json!({}))
 }

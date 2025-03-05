@@ -4,7 +4,7 @@ extern crate serde_json;
 extern crate thiserror;
 extern crate wapc_guest as guest;
 
-use crate::{get_cargo_version, make_json_error, ErrorKinds};
+use crate::{get_cargo_version, get_git_version, make_json_error, ErrorKinds};
 use crate::{FileStream, NewStreamResult, Request, Response};
 
 use serde_json::json;
@@ -71,41 +71,31 @@ impl<'a> BitcodeContext {
         host_call(&self.request.id, stream, "Write", src)
     }
 
-    /// read_stream_chunked reads usize bytes ub chunks of chunksize from a fabric stream returning a slice of [u8]
+    /// seek_stream seeks within a fabric stream
     /// # Arguments
-    /// * `stream_to_read`-  the fabric stream to read from
-    /// * `sz`-  usize size of bytes
-    /// * `chunksize`-  usize size of bytes to read in each chunk
+    /// * `id`-    a unique identifier (can use BitcodeContext's request id)
+    /// * `stream`-  the fabric stream to write to [BitcodeContext::new_stream]
+    /// * `offset`-  offset to seek to
+    /// * `whence` - 0, 1, 2 for start, current, end
     /// # Returns
-    ///   byte slice of the read stream
-    /// [Example](https://github.com/eluv-io/elv-wasm/blob/019b88ac27635d5022c2211751f6af5957df2463/samples/objtar/src/lib.rs#L112)
+    /// utf8 bytes stream containing json
+    /// { "offset" : offset }
     ///
-    pub fn read_stream_chunked(&'a self, stream_to_read: String, chunk_size: usize) -> CallResult {
-        self.log_debug(&format!("imput len = {}", chunk_size))?;
-        let mut data: Vec<u8> = Vec::new();
-        loop {
-            let partial = match self.read_stream(stream_to_read.clone(), chunk_size) {
-                Ok(p) => p,
-                Err(e) => {
-                    self.log_error(&format!("Error reading stream: {e}"))?;
-                    break;
-                }
-            };
-            if partial.is_empty() {
-                break;
-            }
-            data.extend_from_slice(&partial);
-        }
-        Ok(data)
-        // Read was previously being called with a json object containing the length
-        // resulting in a full read of the part and itsd subsequent return as a base64 encoded string
-        // The new convention is to call Reader which will return a byte slice or error
+    /// [Example](https://github.com/eluv-io/elv-wasm/blob/019b88ac27635d5022c2211751f6af5957df2463/samples/external/src/lib.rs#L111)
+    ///
+    pub fn seek_stream(&'a self, stream: &str, offset: i64, whence: i8) -> CallResult {
+        host_call(
+            &self.request.id,
+            stream,
+            "Seek",
+            serde_json::to_string(&json!({ "offset": offset, "whence": whence }))?.as_bytes(),
+        )
     }
 
     /// read_stream reads usize bytes from a fabric stream returning a slice of [u8]
     /// # Arguments
     /// * `stream_to_read`-  the fabric stream to read from
-    /// * `sz`-  usize size of bytes
+    // / * `sz`-  usize size of bytes (0 size will read the entire stream)
     /// # Returns
     ///   byte slice of the read stream
     /// [Example](https://github.com/eluv-io/elv-wasm/blob/019b88ac27635d5022c2211751f6af5957df2463/samples/objtar/src/lib.rs#L112)
@@ -163,7 +153,7 @@ impl<'a> BitcodeContext {
             "headers": {
               "Content-Type": [content_type],
               "Content-Length": [size.to_string()],
-              "X-Content-Fabric-Bitcode-Version": vec![get_cargo_version()],
+              "X-Content-Fabric-Bitcode-Version": vec![&get_cargo_version(), &get_git_version()],
             }
             }
           }
@@ -199,7 +189,7 @@ impl<'a> BitcodeContext {
               "Content-Type": vec![content_type],
               "Content-Length": vec![size.to_string()],
               "Content-Disposition": vec![disp],
-              "X-Content-Fabric-Bitcode-Version": vec![version, get_cargo_version()],
+              "X-Content-Fabric-Bitcode-Version": vec![version, &get_cargo_version(), &get_git_version()],
             }
             }
           }
@@ -211,7 +201,7 @@ impl<'a> BitcodeContext {
                 "headers": {
                   "Content-Type": vec![content_type],
                   "Content-Disposition": vec![disp],
-                  "X-Content-Fabric-Bitcode-Version": vec![version, get_cargo_version()],
+                  "X-Content-Fabric-Bitcode-Version": vec![version, &get_cargo_version(), &get_git_version()],
                 }
                 }
               }
@@ -235,7 +225,7 @@ impl<'a> BitcodeContext {
         Ok(v)
     }
 
-    pub fn make_error(&'a self, msg: &'static str) -> CallResult {
+    pub fn make_error(&'a self, msg: &str) -> CallResult {
         make_json_error(ErrorKinds::Invalid(msg.to_string()), &self.request.id)
     }
 
@@ -324,7 +314,7 @@ impl<'a> BitcodeContext {
     ///     let img_hash = &qp.get("img_hash").ok_or(ErrorKinds::Invalid("img_hash not present".to_string()))?[0];
     ///     let img_obj= &qp.get("img_obj").ok_or(ErrorKinds::Invalid("img_hash not present".to_string()))?[0];
     ///     let tar_hash = &qp.get("tar_hash").ok_or(ErrorKinds::Invalid("tar_hash not present".to_string()))?[0];
-    ///     bcc.log_info(&format!("img_hash ={img_hash:?} tar_hash = {tar_hash:?}"))?;
+    ///     bcc.log_debug(&format!("img_hash ={img_hash:?} tar_hash = {tar_hash:?}"))?;
     ///     let params = json!({
     ///         "http" : {
     ///             "verb" : "some",

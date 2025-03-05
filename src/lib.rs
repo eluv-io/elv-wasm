@@ -66,6 +66,7 @@ pub mod bccontext;
 pub mod bccontext_core;
 pub mod bccontext_error;
 pub mod bccontext_ext;
+pub mod bccontext_fabric_io;
 pub mod bccontext_search;
 pub mod bccontext_struct;
 
@@ -95,8 +96,15 @@ mod version {
     include!(concat!(env!("OUT_DIR"), "/version.rs"));
 }
 
-pub fn get_cargo_version() -> &'static str {
+fn get_git_version() -> &'static str {
+    version::COMMIT_HASH
+}
+fn get_cargo_version() -> &'static str {
     version::CARGO_VERSION
+}
+
+pub fn get_library_version() -> String {
+    format!("cargo:{}--git:{}", get_cargo_version(), get_git_version())
 }
 
 #[macro_export]

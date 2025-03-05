@@ -297,7 +297,7 @@ impl<'a> BitcodeContext {
     /// ```rust
     /// fn do_something<'s>(bcc: &'s mut elvwasm::BitcodeContext) -> wapc_guest::CallResult {
     ///   let wr:elvwasm::WriteResult = bcc.file_to_stream("myfile", "someStreamId").try_into()?;
-    ///   bcc.log_info(&format!("file written {}", wr.written));
+    ///   bcc.log_debug(&format!("file written {}", wr.written));
     ///   let res = vec![];
     ///   Ok(res)
     /// }
